@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Our Money</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <main class="app">
+    <header class="header">
+      <div>
+        <h1>💚 Our Money</h1>
+        <p>Shared with my wife ❤️</p>
+      </div>
+    </header>
+
+    <section class="balance-card">
+      <span>Current Balance</span>
+      <strong id="balance">$0.00</strong>
+    </section>
+
+    <div class="buttons">
+      <button class="btn money-in" onclick="openForm('in')">＋ Money In</button>
+      <button class="btn money-out" onclick="openForm('out')">− Money Out</button>
+    </div>
+
+    <section class="form-card" id="form">
+      <h2 id="formTitle">Add Money In</h2>
+
+      <div class="form-grid">
+        <label>
+          Amount
+          <input id="amount" type="number" min="0" step="0.01" placeholder="0.00">
+        </label>
+
+        <label>
+          Date
+          <input id="date" type="date">
+        </label>
+
+        <label>
+          Description
+          <input id="description" type="text" placeholder="Salary, groceries...">
+        </label>
+
+        <label>
+          Added by
+          <select id="person">
+            <option>Me</option>
+            <option>Wife</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="form-buttons">
+        <button class="btn cancel" onclick="closeForm()">Cancel</button>
+        <button class="btn money-in" id="saveBtn" onclick="saveTransaction()">Save</button>
+      </div>
+    </section>
+
+    <section class="table-card">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Description</th>
+              <th>In</th>
+              <th>Out</th>
+              <th>Balance</th>
+              <th>Added by</th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+<script>
+const STORAGE_KEY = "our-money-transactions";
+let transactions = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+let currentType = "in";
+
+function money(value) {
+  return "$" + Number(value).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  });
+}
+
+function saveData() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions));
+}
+
+function openForm(type) {
+  currentType = type;
+
+  const form = document.getElementById("form");
+  const title = document.getElementById("formTitle");
+  const saveButton = document.getElementById("saveBtn");
+
+  form.classList.add("show");
+  title.textContent = type === "in" ? "Add Money In" : "Add Money Out";
+
+  saveButton.className = "btn " + (type === "in" ? "money-in" : "money-out");
+
+  document.getElementById("date").value =
+    new Date().toISOString().slice(0, 10);
+
+  document.getElementById("amount").focus();
+}
+
+function closeForm() {
+  document.getElementById("form").classList.remove("show");
+}
+
+function saveTransaction() {
+  const amount = Number(document.getElementById("amount").value);
+  const description = document.getElementById("description").value.trim();
+  const date = document.getElementById("date").value;
+  const person = document.getElementById("person").value;
+
+  if (!amount || amount < 0 || !description || !date) {
+    alert("Please enter amount, description and date.");
+    return;
+  }
+
+  transactions.push({
+    id: Date.now(),
+    type: currentType,
+    amount,
+    description,
+    date,
+    person
+  });
+
+  saveData();
+  render();
+  closeForm();
+
+  document.getElementById("amount").value = "";
+  document.getElementById("description").value = "";
+}
+
+function render() {
+  const rows = document.getElementById("rows");
+
+  const sorted = [...transactions].sort(
+    (a, b) => a.date.localeCompare(b.date) || a.id - b.id
+  );
+
+  let balance = 0;
+  rows.innerHTML = "";
+
+  sorted.forEach(transaction => {
+    balance += transaction.type === "in"
+      ? transaction.amount
+      : -transaction.amount;
+
+    const row = document.createElement("tr");
+
+    row.innerHTML = `
+      <td>${formatDate(transaction.date)}</td>
+      <td>${escapeHtml(transaction.description)}</td>
+      <td class="green">
+        ${transaction.type === "in" ? money(transaction.amount) : "-"}
+      </td>
+      <td class="red">
+        ${transaction.type === "out" ? money(transaction.amount) : "-"}
+      </td>
+      <td>${money(balance)}</td>
+      <td>${escapeHtml(transaction.person)}</td>
+    `;
+
+    rows.appendChild(row);
+  });
+
+  document.getElementById("balance").textContent = money(balance);
+
+  if (sorted.length === 0) {
+    rows.innerHTML = `
+      <tr>
+        <td colspan="6" class="empty">
+          No transactions yet. Add your first money in or money out.
+        </td>
+      </tr>
+    `;
+  }
+}
+
+function formatDate(date) {
+  return new Date(date + "T12:00:00").toLocaleDateString();
+}
+
+function escapeHtml(text) {
+  return text.replace(/[&<>"']/g, character => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#039;"
+  }[character]));
+}
+
+render();
+</script>
+
+</body>
+</html>
