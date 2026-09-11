@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Our Money</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<main class="app">
+<header class="header">
+  <div>
+    <h1>💚 Our Money</h1>
+    <p>Shared with my honey IKRAM ❤️</p>
+  </div>
+</header>
+
+<section class="balance-card">
+  <span>Current Balance</span>
+  <strong id="balance">0.00</strong>
+</section>
+
+<div class="buttons">
+  <button class="btn money-in" onclick="openForm('in')">＋ Money In</button>
+  <button class="btn money-out" onclick="openForm('out')">− Money Out</button>
+</div>
+
+<section class="form-card" id="form">
+<h2 id="formTitle">Add Money In</h2>
+<div class="form-grid">
+<label>Amount<input id="amount" type="number" min="0" step="0.01" placeholder="0.00"></label>
+<label>Date<input id="date" type="date"></label>
+<label>Description<input id="description" type="text" placeholder="Salary, groceries..."></label>
+<label>Added by<select id="person"><option>You</option><option>IKRAM</option></select></label>
+</div>
+<div class="form-buttons">
+<button class="btn cancel" onclick="closeForm()">Cancel</button>
+<button class="btn money-in" id="saveBtn" onclick="saveTransaction()">Save</button>
+</div>
+<p id="message"></p>
+</section>
+
+<section class="table-card">
+<div class="table-scroll">
+<table>
+<thead><tr><th>Date</th><th>Description</th><th>In</th><th>Out</th><th>Balance</th><th>Added by</th></tr></thead>
+<tbody id="rows"></tbody>
+</table>
+</div>
+</section>
+</main>
+
+<script>
+const API_URL = "https://script.google.com/macros/s/AKfycbwcCed4Z0OAQ5zqgfBkugLXBlylICd6S3zKImmTOxk1QwdHkfHofactFx78sqcr3Q0/exec";
+let transactions = [];
+let currentType = "in";
+
+function money(value) {
+  return Number(value).toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+
+function openForm(type) {
+  currentType = type;
+  document.getElementById("form").classList.add("show");
+  document.getElementById("formTitle").textContent =
+    type === "in" ? "Add Money In" : "Add Money Out";
+  document.getElementById("saveBtn").className =
+    "btn " + (type === "in" ? "money-in" : "money-out");
+  document.getElementById("date").value = new Date().toISOString().slice(0,10);
+  document.getElementById("amount").focus();
+}
+
+function closeForm() {
+  document.getElementById("form").classList.remove("show");
+}
+
+async function loadTransactions() {
+  if (API_URL.includes("PASTE_YOUR")) {
+    document.getElementById("message").textContent = "Add your Apps Script URL first.";
+    render();
+    return;
+  }
+  try {
+    const response = await fetch(API_URL + "?t=" + Date.now());
+    const data = await response.json();
+    if (!Array.isArray(data)) throw new Error(data.error || "Could not load data");
+    transactions = data;
+    render();
+  } catch (error) {
+    console.error(error);
+    document.getElementById("message").textContent = "Could not connect to Google Sheets.";
+  }
+}
+
+async function saveTransaction() {
+  const amount = Number(document.getElementById("amount").value);
+  const description = document.getElementById("description").value.trim();
+  const date = document.getElementById("date").value;
+  const person = document.getElementById("person").value;
+
+  if (!amount || !description || !date) {
+    document.getElementById("message").textContent = "Please enter amount, description and date.";
+    return;
+  }
+
+  if (API_URL.includes("PASTE_YOUR")) {
+    document.getElementById("message").textContent = "Add your Apps Script URL first.";
+    return;
+  }
+
+  const button = document.getElementById("saveBtn");
+  button.disabled = true;
+  button.textContent = "Saving...";
+
+  try {
+    await fetch(API_URL, {
+      method: "POST",
+      body: JSON.stringify({type:currentType, amount, description, date, person})
+    });
+    document.getElementById("amount").value = "";
+    document.getElementById("description").value = "";
+    document.getElementById("message").textContent = "Saved ❤️";
+    await loadTransactions();
+  } catch (error) {
+    console.error(error);
+    document.getElementById("message").textContent = "Could not save.";
+  } finally {
+    button.disabled = false;
+    button.textContent = "Save";
+  }
+}
+
+function render() {
+  const rows = document.getElementById("rows");
+  rows.innerHTML = "";
+  let balance = 0;
+
+  const sorted = [...transactions].sort((a,b) =>
+    a.date.localeCompare(b.date) || Number(a.id)-Number(b.id));
+
+  sorted.forEach(t => {
+    balance += t.type === "in" ? Number(t.amount) : -Number(t.amount);
+    const row = document.createElement("tr");
+    row.innerHTML =
+      "<td>" + formatDate(t.date) + "</td>" +
+      "<td>" + escapeHtml(t.description) + "</td>" +
+      '<td class="green">' + (t.type === "in" ? money(t.amount) : "-") + "</td>" +
+      '<td class="red">' + (t.type === "out" ? money(t.amount) : "-") + "</td>" +
+      "<td>" + money(balance) + "</td>" +
+      "<td>" + escapeHtml(t.person) + "</td>";
+    rows.appendChild(row);
+  });
+
+  document.getElementById("balance").textContent = money(balance);
+
+  if (!sorted.length) {
+    rows.innerHTML = '<tr><td colspan="6" class="empty">No transactions yet.</td></tr>';
+  }
+}
+
+function formatDate(date) {
+  return new Date(date + "T12:00:00").toLocaleDateString();
+}
+
+function escapeHtml(text) {
+  return String(text).replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+  }[c]));
+}
+
+loadTransactions();
+</script>
+</body>
+</html>
